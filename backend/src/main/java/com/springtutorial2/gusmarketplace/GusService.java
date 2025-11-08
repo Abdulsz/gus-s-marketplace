@@ -87,14 +87,18 @@ public class GusService {
         return email.matches(emailRegex);
     }
     
-    // Helper method to validate GroupMe link - just check if "groupme" is in the text (case insensitive)
+    // Helper method to validate GroupMe link format
     private boolean isValidGroupMeLink(String link) {
         if (link == null || link.trim().isEmpty()) {
             return false;
         }
-        // Simply check if "groupme" appears in the link (case insensitive)
-        // This allows profile links, join_group links, and other GroupMe URLs
-        return link.toLowerCase().contains("groupme");
+        // GroupMe links can be:
+        // - https://groupme.com/join_group/...
+        // - https://web.groupme.com/join_group/...
+        // - groupme://join_group/...
+        // - https://groupme.com/join_group/... (with various paths)
+        String groupMePattern = "^(https?://(web\\.)?groupme\\.com/join_group/|groupme://join_group/).+";
+        return link.matches(groupMePattern);
     }
 
     public List<ListingDTO> getListingsByCategory(String category) {
@@ -164,24 +168,54 @@ public class GusService {
     }
 
     public Map<String, String> generateUploadUrl(){
-        String bucketName = "gus-market-listing-imgs";
-        String fileName = UUID.randomUUID().toString() + ".jpg";
+        try {
+            String bucketName = "gus-market-listing-imgs";
+            String fileName = UUID.randomUUID().toString() + ".jpg";
 
-        // Generate presigned URL with image/jpeg as base type
-        // The client will send the actual file's MIME type in the PUT request
-        // S3 will accept it as long as it's a valid image format
-        GeneratePresignedUrlRequest request = new GeneratePresignedUrlRequest(bucketName, fileName)
-                .withMethod(com.amazonaws.HttpMethod.PUT)
-                .withExpiration(Date.from(Instant.now().plus(15, ChronoUnit.HOURS)))
-                .withContentType("image/jpeg");
+            System.out.println("Generating presigned URL for bucket: " + bucketName);
+            System.out.println("File name: " + fileName);
 
-        URL url = s3Client.generatePresignedUrl(request);
+            GeneratePresignedUrlRequest request = new GeneratePresignedUrlRequest(bucketName, fileName)
+                    .withMethod(com.amazonaws.HttpMethod.PUT)
+                    .withExpiration(Date.from(Instant.now().plus(15, ChronoUnit.HOURS)))
+                    .withContentType("image/jpeg");
 
-        // Return the upload and file URLs
-        return Map.of(
-                "uploadUrl", url.toString(),
-                "fileUrl", "https://" + bucketName + ".s3.us-east-2.amazonaws.com/" + fileName
-            );
+            URL url = s3Client.generatePresignedUrl(request);
+            System.out.println("Successfully generated presigned URL");
+
+            // Return the upload and file URLs
+            return Map.of(
+                    "uploadUrl", url.toString(),
+                    "fileUrl", "https://" + bucketName + ".s3.us-east-2.amazonaws.com/" + fileName
+                );
+        } catch (com.amazonaws.AmazonServiceException e) {
+            System.err.println("AWS Service Error: " + e.getMessage());
+            System.err.println("Error Code: " + e.getErrorCode());
+            System.err.println("Status Code: " + e.getStatusCode());
+            String errorMsg = "Failed to generate upload URL. ";
+            if (e.getErrorCode().equals("InvalidAccessKeyId") || e.getErrorCode().equals("SignatureDoesNotMatch")) {
+                errorMsg += "Invalid AWS credentials. Please check your .env file.";
+            } else if (e.getErrorCode().equals("NoSuchBucket")) {
+                errorMsg += "S3 bucket '" + "gus-market-listing-imgs" + "' does not exist.";
+            } else {
+                errorMsg += "AWS Error: " + e.getMessage() + " (Code: " + e.getErrorCode() + ")";
+            }
+            throw new RuntimeException(errorMsg);
+        } catch (com.amazonaws.AmazonClientException e) {
+            System.err.println("AWS Client Error: " + e.getMessage());
+            e.printStackTrace();
+            String errorMsg = "Failed to generate upload URL. ";
+            if (e.getMessage() != null && e.getMessage().contains("placeholder")) {
+                errorMsg += "AWS credentials not configured. Please check your .env file.";
+            } else {
+                errorMsg += "AWS Client Error: " + e.getMessage();
+            }
+            throw new RuntimeException(errorMsg);
+        } catch (Exception e) {
+            System.err.println("Error generating upload URL: " + e.getMessage());
+            e.printStackTrace();
+            throw new RuntimeException("Failed to generate upload URL: " + e.getMessage());
+        }
     }
 
     public void sendContactEmailToSeller(String listingId, String buyerEmail, String buyerName, String message) {

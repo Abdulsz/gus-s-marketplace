@@ -14,14 +14,27 @@ public class AwsConfig {
     @Bean
     public AmazonS3 amazonS3() {
         try {
-            Dotenv dotenv = Dotenv.configure().load();
+            System.out.println("=== Initializing AWS S3 Client ===");
+            System.out.println("Current working directory: " + System.getProperty("user.dir"));
+            
+            // Use the same approach as GusMarketplaceApplication
+            Dotenv dotenv = Dotenv.configure()
+                    .ignoreIfMissing()
+                    .load();
             String accessKey = dotenv.get("AWS_ACCESS_KEY_ID");
             String secretKey = dotenv.get("AWS_SECRET_ACCESS_KEY");
             
-            if (accessKey == null || secretKey == null || accessKey.isEmpty() || secretKey.isEmpty() || 
-                accessKey.equals("placeholder") || secretKey.equals("placeholder")) {
-                // Return a dummy client that will fail gracefully when used
-                // This allows the app to start without real AWS credentials
+            System.out.println("Access Key loaded: " + (accessKey != null && !accessKey.isEmpty()));
+            System.out.println("Secret Key loaded: " + (secretKey != null && !secretKey.isEmpty()));
+            
+            if (accessKey != null && !accessKey.isEmpty()) {
+                System.out.println("Access Key starts with: " + accessKey.substring(0, Math.min(8, accessKey.length())) + "...");
+            }
+            
+            if (accessKey == null || secretKey == null || accessKey.isEmpty() || secretKey.isEmpty()) {
+                System.err.println("WARNING: AWS credentials not found in .env file.");
+                System.err.println("Current working directory: " + System.getProperty("user.dir"));
+                System.err.println("Image upload will not work. Returning placeholder client.");
                 return AmazonS3ClientBuilder.standard()
                         .withRegion("us-east-2")
                         .withCredentials(new AWSStaticCredentialsProvider(
@@ -29,13 +42,19 @@ public class AwsConfig {
                         .build();
             }
             
+            System.out.println("Creating AWS S3 client...");
             BasicAWSCredentials awsCredentials = new BasicAWSCredentials(accessKey, secretKey);
-            return AmazonS3ClientBuilder.standard()
+            AmazonS3 client = AmazonS3ClientBuilder.standard()
                     .withRegion("us-east-2")
                     .withCredentials(new AWSStaticCredentialsProvider(awsCredentials))
                     .build();
+            
+            System.out.println("AWS S3 client created successfully!");
+            return client;
         } catch (Exception e) {
-            // If .env file doesn't exist or any error, return placeholder client
+            System.err.println("WARNING: Failed to initialize AWS S3 client: " + e.getMessage());
+            System.err.println("Image upload will not work. Please check your .env file.");
+            e.printStackTrace();
             return AmazonS3ClientBuilder.standard()
                     .withRegion("us-east-2")
                     .withCredentials(new AWSStaticCredentialsProvider(

@@ -2,9 +2,7 @@ package com.springtutorial2.gusmarketplace;
 
 import org.springframework.data.mongodb.repository.MongoRepository;
 
-import javax.swing.text.html.Option;
 import java.util.List;
-import java.util.Optional;
 
 public interface GusRepository extends MongoRepository<Listing, String> {
     // This interface extends MongoRepository to provide CRUD operations for Listing entities.

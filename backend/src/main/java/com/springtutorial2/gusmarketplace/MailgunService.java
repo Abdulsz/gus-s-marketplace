@@ -1,9 +1,11 @@
 package com.springtutorial2.gusmarketplace;
 
+import io.github.cdimascio.dotenv.Dotenv;
 import org.springframework.stereotype.Service;
 
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
+import java.net.URI;
 import java.net.URL;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
@@ -13,22 +15,48 @@ import java.util.Scanner;
 @Service
 public class MailgunService {
     
-    private static final String MAILGUN_API_KEY = "ENV_VAR_PLACEHOLDER";
     private static final String MAILGUN_DOMAIN = "gusmarketplace.com";
-    private static final String MAILGUN_BASE_URL = "https://api.mailgun.net/v3/" + MAILGUN_DOMAIN + "/messages";
-    private static final String FROM_EMAIL = "postmaster@" + MAILGUN_DOMAIN;
+    
+    private String getMailgunApiKey() {
+        try {
+            Dotenv dotenv = Dotenv.configure().load();
+            String apiKey = dotenv.get("MAILGUN_API_KEY");
+            if (apiKey == null || apiKey.isEmpty()) {
+                apiKey = System.getenv("MAILGUN_API_KEY");
+            }
+            if (apiKey == null || apiKey.isEmpty()) {
+                throw new RuntimeException("MAILGUN_API_KEY not found in .env file or environment variables");
+            }
+            return apiKey;
+        } catch (Exception e) {
+            String apiKey = System.getenv("MAILGUN_API_KEY");
+            if (apiKey == null || apiKey.isEmpty()) {
+                throw new RuntimeException("MAILGUN_API_KEY not found. Please check your .env file or environment variables: " + e.getMessage());
+            }
+            return apiKey;
+        }
+    }
+    
+    private String getMailgunBaseUrl() {
+        return "https://api.mailgun.net/v3/" + MAILGUN_DOMAIN + "/messages";
+    }
+    
+    private String getFromEmail() {
+        return "postmaster@" + MAILGUN_DOMAIN;
+    }
     
     public void sendContactEmail(String sellerEmail, String buyerEmail, String buyerName, 
                                  String listingTitle, String message) {
         try {
-            URL url = new URL(MAILGUN_BASE_URL);
+            String apiKey = getMailgunApiKey();
+            URL url = new URI(getMailgunBaseUrl()).toURL();
             HttpURLConnection connection = (HttpURLConnection) url.openConnection();
             
             // Set up the connection
             connection.setRequestMethod("POST");
             connection.setDoOutput(true);
             connection.setRequestProperty("Authorization", 
-                "Basic " + Base64.getEncoder().encodeToString(("api:" + MAILGUN_API_KEY).getBytes()));
+                "Basic " + Base64.getEncoder().encodeToString(("api:" + apiKey).getBytes()));
             connection.setRequestProperty("Content-Type", "application/x-www-form-urlencoded");
             
             // Build the email content
@@ -46,7 +74,7 @@ public class MailgunService {
             // Build the form data
             String formData = String.format(
                 "from=%s&to=%s&subject=%s&text=%s",
-                URLEncoder.encode("GUS Marketplace <" + FROM_EMAIL + ">", StandardCharsets.UTF_8),
+                URLEncoder.encode("GUS Marketplace <" + getFromEmail() + ">", StandardCharsets.UTF_8),
                 URLEncoder.encode(sellerEmail, StandardCharsets.UTF_8),
                 URLEncoder.encode(subject, StandardCharsets.UTF_8),
                 URLEncoder.encode(emailBody, StandardCharsets.UTF_8)
@@ -101,7 +129,7 @@ public class MailgunService {
                 System.err.println("Response body: " + responseBody);
                 System.err.println("Seller email: " + sellerEmail);
                 System.err.println("Buyer email: " + buyerEmail);
-                System.err.println("From email: " + FROM_EMAIL);
+                System.err.println("From email: " + getFromEmail());
                 System.err.println("Domain: " + MAILGUN_DOMAIN);
                 
                 // Provide more helpful error messages
