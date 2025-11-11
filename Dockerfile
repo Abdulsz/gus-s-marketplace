@@ -1,7 +1,14 @@
 # Multi-stage build for Spring Boot application
-# Build stage
-FROM maven:3.9.4-eclipse-temurin-21 AS build
+# Build stage - using latest Maven 3.9 with Eclipse Temurin 21
+FROM maven:3.9-eclipse-temurin-21 AS build
 WORKDIR /build
+
+# Copy and install mkcert development certificate (for CI/CD environments with SSL interception)
+COPY mkcert-ca.crt /usr/local/share/ca-certificates/
+RUN update-ca-certificates && \
+    # Import certificate into Java truststore for Maven SSL connections
+    keytool -import -trustcacerts -keystore $JAVA_HOME/lib/security/cacerts \
+            -storepass changeit -noprompt -alias mkcert-dev-ca -file /usr/local/share/ca-certificates/mkcert-ca.crt
 
 # Copy pom.xml and source code
 COPY backend/pom.xml .
