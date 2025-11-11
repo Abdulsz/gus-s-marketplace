@@ -1,0 +1,61 @@
+# Build artifacts
+target
+*.jar
+*.war
+*.ear
+*.class
+
+# Git
+.git
+.gitignore
+.gitattributes
+
+# IDE
+.idea
+.vscode
+*.iml
+*.iws
+*.ipr
+.settings
+.project
+.classpath
+
+# Node modules (if any frontend tooling)
+node_modules
+npm-debug.log
+
+# Maven wrapper (already copied in Dockerfile when needed)
+mvnw
+mvnw.cmd
+.mvn
+
+# Logs
+logs
+*.log
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Environment files
+.env
+.env.local
+
+# Documentation
+README.md
+*.md
+
+# CI/CD
+.github
+buildspec.yml
+
+# Test coverage
+coverage
+
+# Temporary files
+tmp
+temp
+*.tmp
+*.swp
+*.swo
+*~
