@@ -1,0 +1,54 @@
+# Git files
+.git
+.gitignore
+.gitattributes
+
+# IDE files
+.idea
+.vscode
+*.iml
+*.iws
+*.ipr
+.project
+.classpath
+.settings
+.factorypath
+
+# Build artifacts
+backend/target/
+target/
+build/
+dist/
+out/
+
+# Dependencies
+node_modules/
+.mvn/wrapper/maven-wrapper.jar
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Environment files
+.env
+.env.local
+*.env
+
+# Documentation and metadata
+README.md
+*.md
+HELP.md
+
+# CI/CD
+.github/
+buildspec.yml
+
+# Logs
+*.log
+logs/
+
+# Temporary files
+*.tmp
+*.swp
+*.swo
+*~
