@@ -3,26 +3,34 @@
 FROM maven:3.9.4-eclipse-temurin-21 AS build
 WORKDIR /build
 
-# Copy pom.xml and source code
+# Copy pom.xml first for better layer caching
 COPY backend/pom.xml .
-COPY backend/src src/
-COPY backend/.mvn .mvn/
-COPY backend/mvnw .
-COPY backend/mvnw.cmd .
+# Download dependencies (this layer will be cached if pom.xml doesn't change)
+RUN mvn dependency:go-offline -B
+
+# Copy source code
+COPY backend/src ./src
 
 # Build the application, skipping tests
-RUN mvn -DskipTests package
+RUN mvn clean package -DskipTests
 
-# Runtime stage
-FROM eclipse-temurin:21-jdk
+# Runtime stage - use JRE instead of JDK for smaller image
+FROM eclipse-temurin:21-jre
 WORKDIR /app
 
-# Copy the built jar from build stage
-COPY --from=build /build/target/*.jar /app/app.jar
+# Create a non-root user for security
+RUN groupadd -r spring && useradd -r -g spring spring
+
+# Copy the built jar from build stage and set ownership
+COPY --from=build --chown=spring:spring /build/target/*.jar app.jar
+
+# Switch to non-root user
+USER spring:spring
 
 # Expose port 8080
 EXPOSE 8080
 
 # Run the application
 # PORT environment variable can be set by Cloud Run
-CMD java $JAVA_OPTS -jar /app/app.jar --server.port=${PORT:-8080}
+# Using shell form to allow environment variable substitution
+CMD java ${JAVA_OPTS} -jar app.jar --server.port=${PORT:-8080}
