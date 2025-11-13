@@ -31,6 +31,8 @@ USER spring:spring
 EXPOSE 8080
 
 # Run the application
-# PORT environment variable can be set by Cloud Run
+# PORT environment variable is set by Cloud Run (usually 8080, but can vary)
+# Command line argument overrides application.properties (which defaults to 8082 for local dev)
+# This ensures Cloud Run uses port 8080, while local development uses 8082
 # Using shell form to allow environment variable substitution
 CMD java ${JAVA_OPTS} -jar app.jar --server.port=${PORT:-8080}
