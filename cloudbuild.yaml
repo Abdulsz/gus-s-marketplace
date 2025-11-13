@@ -1,0 +1,24 @@
+# Google Cloud Build configuration for Spring Boot application
+steps:
+  # Build the Docker image
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['build', '-t', 'gcr.io/$PROJECT_ID/gus-marketplace:$COMMIT_SHA', '.']
+  
+  # Push the image to Google Container Registry
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['push', 'gcr.io/$PROJECT_ID/gus-marketplace:$COMMIT_SHA']
+  
+  # Also tag as latest
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['tag', 'gcr.io/$PROJECT_ID/gus-marketplace:$COMMIT_SHA', 'gcr.io/$PROJECT_ID/gus-marketplace:latest']
+  
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['push', 'gcr.io/$PROJECT_ID/gus-marketplace:latest']
+
+# Images to push to Container Registry
+images:
+  - 'gcr.io/$PROJECT_ID/gus-marketplace:$COMMIT_SHA'
+  - 'gcr.io/$PROJECT_ID/gus-marketplace:latest'
+
+# Build timeout (20 minutes for Maven downloads and compilation)
+timeout: '1200s'
