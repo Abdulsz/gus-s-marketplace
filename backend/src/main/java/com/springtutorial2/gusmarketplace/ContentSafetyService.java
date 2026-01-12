@@ -52,8 +52,8 @@ public class ContentSafetyService {
         boolean enabled = endpoint != null && !endpoint.isEmpty() &&
                 subscriptionKey != null && !subscriptionKey.isEmpty();
         if (!enabled) {
-            logger.warn(
-                    "Content Safety Service is DISABLED - endpoint or subscription key not configured. Endpoint configured: {}, Key configured: {}",
+            logger.debug(
+                    "Content Safety Service disabled (missing endpoint or key). Endpoint configured: {}, Key configured: {}",
                     endpoint != null && !endpoint.isEmpty(),
                     subscriptionKey != null && !subscriptionKey.isEmpty());
         } else {
@@ -87,11 +87,11 @@ public class ContentSafetyService {
      * acceptable
      */
     public boolean moderateImage(String base64Image) throws ContentModerationException {
-        logger.info("Starting image moderation (base64 length: {})", base64Image != null ? base64Image.length() : 0);
+        logger.debug("Starting image moderation (base64 length: {})", base64Image != null ? base64Image.length() : 0);
 
         if (!isEnabled()) {
-            logger.warn(
-                    "Image moderation skipped - Content Safety Service is disabled. Image will be ACCEPTED without moderation.");
+            logger.debug(
+                    "Image moderation skipped - Content Safety disabled. Accepting without moderation.");
             return true; // Skip moderation if not configured
         }
 
@@ -99,26 +99,22 @@ public class ContentSafetyService {
             logger.debug("Calling Azure Content Safety API for image detection");
             DetectionResult result = detect(MediaType.Image, base64Image, new String[] {});
 
-            // Log detailed detection results
+            // Log detailed detection results at debug only
             if (result != null && result.getCategoriesAnalysis() != null) {
-                logger.info("Image detection results received:");
-                for (DetailedResult detail : result.getCategoriesAnalysis()) {
-                    logger.info("  Category: {}, Severity: {}", detail.getCategory(), detail.getSeverity());
-                }
+                logger.debug("Image detection results received with {} categories",
+                        result.getCategoriesAnalysis().size());
             } else {
-                logger.warn("Image detection result is null or has no categories analysis");
+                logger.debug("Image detection result is null or has no categories analysis");
             }
 
             Map<Category, Integer> rejectThresholds = getDefaultRejectThresholds();
-            logger.info("Using reject thresholds: {}", rejectThresholds);
+            logger.debug("Using reject thresholds: {}", rejectThresholds);
 
             Decision decision = makeDecision(result, rejectThresholds);
             boolean accepted = decision.getSuggestedAction() == Action.Accept;
 
-            logger.info("Image moderation decision: {} (Suggested Action: {})",
-                    accepted ? "ACCEPTED" : "REJECTED",
-                    decision.getSuggestedAction());
-            logger.info("Per-category decisions: {}", decision.getActionByCategory());
+            logger.info("Image moderation {}", accepted ? "ACCEPTED" : "REJECTED");
+            logger.debug("Per-category decisions: {}", decision.getActionByCategory());
 
             return accepted;
         } catch (DetectionException e) {
@@ -135,17 +131,17 @@ public class ContentSafetyService {
      * Moderates image from byte array
      */
     public boolean moderateImageFromBytes(byte[] imageBytes) throws ContentModerationException {
-        logger.info("Starting image moderation from bytes (size: {} bytes)",
+        logger.debug("Starting image moderation from bytes (size: {} bytes)",
                 imageBytes != null ? imageBytes.length : 0);
 
         if (!isEnabled()) {
-            logger.warn(
-                    "Image moderation from bytes skipped - Content Safety Service is disabled. Image will be ACCEPTED without moderation.");
+            logger.debug(
+                    "Image moderation from bytes skipped - Content Safety disabled. Accepting without moderation.");
             return true; // Skip moderation if not configured
         }
 
         if (imageBytes == null || imageBytes.length == 0) {
-            logger.warn("Image bytes are null or empty - image will be ACCEPTED without moderation");
+            logger.debug("Image bytes are null or empty - accepting without moderation");
             return true; // No image to moderate
         }
 
@@ -158,16 +154,16 @@ public class ContentSafetyService {
      * Moderates image from URL by downloading and converting to base64
      */
     public boolean moderateImageFromUrl(String imageUrl) throws ContentModerationException {
-        logger.info("Starting image moderation from URL: {}", imageUrl);
+        logger.debug("Starting image moderation from URL: {}", imageUrl);
 
         if (!isEnabled()) {
-            logger.warn(
-                    "Image moderation from URL skipped - Content Safety Service is disabled. Image will be ACCEPTED without moderation.");
+            logger.debug(
+                    "Image moderation from URL skipped - Content Safety disabled. Accepting without moderation.");
             return true; // Skip moderation if not configured
         }
 
         if (imageUrl == null || imageUrl.isEmpty()) {
-            logger.warn("Image URL is null or empty - image will be ACCEPTED without moderation");
+            logger.debug("Image URL is null or empty - accepting without moderation");
             return true; // No image to moderate
         }
 
@@ -208,8 +204,7 @@ public class ContentSafetyService {
         rejectThresholds.put(Category.SelfHarm, 4); // Reject low, medium, and high severity self-harm content
         rejectThresholds.put(Category.Sexual, 4); // Reject low, medium, and high severity sexual content (strict)
         rejectThresholds.put(Category.Violence, 4); // Reject low, medium, and high severity violent content
-        logger.debug("Default reject thresholds configured - Sexual content threshold: {}",
-                rejectThresholds.get(Category.Sexual));
+        logger.debug("Default reject thresholds configured");
         return rejectThresholds;
     }
 
@@ -609,7 +604,7 @@ public class ContentSafetyService {
      *         reject thresholds.
      */
     public Decision makeDecision(DetectionResult detectionResult, Map<Category, Integer> rejectThresholds) {
-        logger.info("Making moderation decision - Evaluating {} categories", rejectThresholds.size());
+        logger.debug("Making moderation decision - Evaluating {} categories", rejectThresholds.size());
 
         Map<Category, Action> actionResult = new HashMap<>();
         Action finalAction = Action.Accept;
@@ -631,24 +626,13 @@ public class ContentSafetyService {
             Action action;
             if (threshold != -1 && severity >= threshold) {
                 action = Action.Reject;
-                logger.warn("Category {} REJECTED - Severity: {}, Threshold: {} (severity >= threshold)",
-                        category, severity, threshold);
             } else {
                 action = Action.Accept;
-                if (threshold == -1) {
-                    logger.debug("Category {} ACCEPTED - Threshold is -1 (disabled), Severity: {}", category, severity);
-                } else {
-                    logger.debug("Category {} ACCEPTED - Severity: {}, Threshold: {} (severity < threshold)",
-                            category, severity, threshold);
-                }
             }
             actionResult.put(category, action);
 
             // Log Sexual category decision prominently
-            if (category == Category.Sexual) {
-                logger.info("SEXUAL CONTENT DECISION - Severity: {}, Threshold: {}, Action: {}",
-                        severity, threshold, action);
-            }
+            // Reduced logging: no per-category info-level logs
 
             if (action.compareTo(finalAction) > 0) {
                 finalAction = action;
@@ -659,13 +643,12 @@ public class ContentSafetyService {
         if (detectionResult instanceof TextDetectionResult textDetectionResult) {
             if (textDetectionResult.getBlocklistsMatch() != null
                     && textDetectionResult.getBlocklistsMatch().size() > 0) {
-                logger.warn("Text blocklist match detected - Rejecting content. Matches: {}",
-                        textDetectionResult.getBlocklistsMatch().size());
+                logger.debug("Text blocklist match detected - rejecting content");
                 finalAction = Action.Reject;
             }
         }
 
-        logger.info("Final moderation decision: {} - Per-category actions: {}", finalAction, actionResult);
+        logger.info("Moderation {}", finalAction == Action.Accept ? "ACCEPTED" : "REJECTED");
         return new Decision(finalAction, actionResult);
     }
 }

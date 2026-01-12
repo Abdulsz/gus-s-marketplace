@@ -41,6 +41,14 @@ public class GusMarketplaceApplication {
                     System.setProperty("AZURE_CONTENT_SAFETY_SUBSCRIPTION_KEY", key);
                 }
             }
+
+            if (System.getenv("RESEND_API_KEY") == null) {
+                String resendKey = dotenv.get("RESEND_API_KEY", "");
+                if (!resendKey.isEmpty()) {
+                    System.setProperty("RESEND_API_KEY", resendKey);
+                }
+            }
+
         } catch (Exception e) {
             // If Dotenv fails, environment variables (Cloud Run) or application.properties
             // will be used

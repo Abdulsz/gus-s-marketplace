@@ -99,4 +99,22 @@ public class GusController {
     public Map<String, String> getUploadUrl() {
         return gusService.generateUploadUrl();
     }
+
+    @PostMapping("/contact-seller/{id}")
+    public ResponseEntity<?> contactSeller(@PathVariable String id, @RequestBody Map<String, String> messagePayload) {
+        String buyerInfo = messagePayload.get("buyerName");
+        String buyerMessage = messagePayload.get("message");
+        try{
+            gusService.contactSeller(id, buyerInfo, buyerMessage);
+            return ResponseEntity.ok(Map.of("status", "Message sent to seller"));
+        } catch (Exception e) {
+            System.err.println("Error contacting seller: " + e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of("error", "Failed to contact seller", "message",
+                            e.getMessage() != null ? e.getMessage() : "An unknown error occurred"));
+        }
+
+
+
+    }
 }

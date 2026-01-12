@@ -4,6 +4,10 @@ import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.model.GeneratePresignedUrlRequest;
 import com.amazonaws.services.s3.model.ObjectMetadata;
 import com.amazonaws.services.s3.model.PutObjectRequest;
+import com.resend.Resend;
+import com.resend.core.exception.ResendException;
+import com.resend.services.emails.model.CreateEmailOptions;
+import com.resend.services.emails.model.CreateEmailResponse;
 import lombok.AllArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
@@ -172,6 +176,43 @@ public class GusService {
         return Map.of(
                 "uploadUrl", uploadUrl,
                 "fileUrl", fileUrl);
+    }
+
+    public String contactSeller(String listingId, String buyer, String message) {
+
+        Listing listing = gusRepository.findById(listingId)
+                .orElseThrow(() -> new RuntimeException("Listing not found with id: " + listingId));
+
+        String seller = listing.getUserName();
+
+        String html = String.format(
+                "<p><strong>%s</strong> is interested in your listing: <em>%s</em></p><p>Message:<br/>%s</p>",
+                buyer, listing.getTitle(), message);
+
+        String apiKey = System.getenv("RESEND_API_KEY");
+        if (apiKey == null || apiKey.isBlank()) {
+            // Fallback to Java system property set from .env in local dev
+            apiKey = System.getProperty("RESEND_API_KEY");
+        }
+        if (apiKey == null || apiKey.isBlank()) {
+            throw new IllegalStateException("RESEND_API_KEY is not configured");
+        }
+
+        Resend resend = new Resend(apiKey);
+
+        CreateEmailOptions params = CreateEmailOptions.builder()
+                .from("Gus <system@gusmarketplace.com>")
+                .to(new String[]{seller})
+                .subject("Buyer request for your item")
+                .html(html)
+                .build();
+
+        try {
+            CreateEmailResponse data = resend.emails().send(params);
+            return "Message sent to seller. Email id: " + data.getId();
+        } catch (ResendException e) {
+            throw new RuntimeException("Failed to send contact email: " + e.getMessage(), e);
+        }
     }
 
 }
