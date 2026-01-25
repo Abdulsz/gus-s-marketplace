@@ -5,6 +5,8 @@ import lombok.Data;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.mapping.Document;
 
+import java.util.Date;
+
 @Data
 @Document(collection = "listings")
 @AllArgsConstructor
@@ -19,6 +21,8 @@ public class Listing {
     private String price;
     private String condition;
     private String groupMeLink;
+    private Date createdAt;
+    private Date expiresAt;
 }
 // The Listing class represents a marketplace listing with fields for
 // user name, title, description, category, image URL, price, condition, and a GroupMe link.

@@ -88,6 +88,8 @@ public class GusService {
         }
 
         // Create and save listing
+        Date now = Date.from(Instant.now());
+        Date expiresAt = Date.from(Instant.now().plus(30, ChronoUnit.DAYS));
         Listing listing = new Listing(
                 null, // ID will be auto-generated
                 userName,
@@ -97,7 +99,9 @@ public class GusService {
                 imageUrl,
                 price,
                 condition,
-                groupMeLink);
+                groupMeLink,
+                now,
+                expiresAt);
         
         gusRepository.save(listing);
         return listing;
