@@ -32,8 +32,8 @@ public class GusService {
     private final ContentSafetyService contentSafetyService;
 
     public List<Listing> getAllListings() {
-
-        return gusRepository.findAll();
+        // Return non-expired listings, newest first
+        return gusRepository.findByExpiresAtAfterOrderByCreatedAtDesc(new Date());
     }
 
     /**
