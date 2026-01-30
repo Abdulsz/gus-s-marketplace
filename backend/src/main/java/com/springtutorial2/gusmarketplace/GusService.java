@@ -8,7 +8,7 @@ import com.resend.Resend;
 import com.resend.core.exception.ResendException;
 import com.resend.services.emails.model.CreateEmailOptions;
 import com.resend.services.emails.model.CreateEmailResponse;
-import lombok.AllArgsConstructor;
+import org.springframework.core.env.Environment;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -17,6 +17,10 @@ import static com.springtutorial2.gusmarketplace.ContentSafetyService.ContentMod
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URL;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Paths;
+import java.nio.file.StandardOpenOption;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.Date;
@@ -24,12 +28,20 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
-@AllArgsConstructor
 @Service
 public class GusService {
     private final AmazonS3 s3Client;
     private final GusRepository gusRepository;
     private final ContentSafetyService contentSafetyService;
+    private final Environment environment;
+
+    public GusService(AmazonS3 s3Client, GusRepository gusRepository,
+                      ContentSafetyService contentSafetyService, Environment environment) {
+        this.s3Client = s3Client;
+        this.gusRepository = gusRepository;
+        this.contentSafetyService = contentSafetyService;
+        this.environment = environment;
+    }
 
     public List<Listing> getAllListings() {
         // Return non-expired listings, newest first
@@ -188,6 +200,9 @@ public class GusService {
                 .orElseThrow(() -> new RuntimeException("Listing not found with id: " + listingId));
 
         String seller = listing.getUserName();
+        if (seller == null || seller.isBlank()) {
+            throw new IllegalStateException("Listing has no seller email");
+        }
 
         String html = String.format(
                 "<p><strong>%s</strong> is interested in your listing: <em>%s</em></p><p>Message:<br/>%s</p>",
@@ -217,6 +232,79 @@ public class GusService {
         } catch (ResendException e) {
             throw new RuntimeException("Failed to send contact email: " + e.getMessage(), e);
         }
+    }
+
+    /**
+     * Sends a Contact Us feedback email to the configured recipient (default mahatnitai@gmail.com).
+     * Uses  Resend setup as contactSeller.
+     */
+    public void sendContactUsEmail(String name, String email, String message) {
+        // #region agent log
+        try {
+            String line = "{\"location\":\"GusService.sendContactUsEmail:entry\",\"message\":\"service called\",\"data\":{\"hasName\":" + (name != null && !name.isBlank()) + ",\"hasEmail\":" + (email != null && !email.isBlank()) + ",\"messageLen\":" + (message != null ? message.length() : 0) + "},\"hypothesisId\":\"D\",\"timestamp\":" + System.currentTimeMillis() + "}\n";
+            Files.write(Paths.get("c:\\Users\\death\\gus-s-marketplace\\.cursor\\debug.log"), line.getBytes(StandardCharsets.UTF_8), StandardOpenOption.CREATE, StandardOpenOption.APPEND);
+        } catch (Exception _e) { }
+        // #endregion
+        String to = environment.getProperty("contact.us.recipient", "mahatnitai@gmail.com");
+        if (to == null || to.isBlank()) {
+            to = "mahatnitai@gmail.com";
+        }
+
+        StringBuilder body = new StringBuilder();
+        if (name != null && !name.isBlank()) {
+            body.append("<p><strong>From:</strong> ").append(escapeHtml(name)).append("</p>");
+        }
+        if (email != null && !email.isBlank()) {
+            body.append("<p><strong>Email:</strong> ").append(escapeHtml(email)).append("</p>");
+        }
+        body.append("<p><strong>Message:</strong></p><p>").append(escapeHtml(message != null ? message : "")).append("</p>");
+        String html = body.toString();
+
+        String apiKey = System.getenv("RESEND_API_KEY");
+        if (apiKey == null || apiKey.isBlank()) {
+            apiKey = System.getProperty("RESEND_API_KEY");
+        }
+        if (apiKey == null || apiKey.isBlank()) {
+            // #region agent log
+            try {
+                String line = "{\"location\":\"GusService.sendContactUsEmail:noApiKey\",\"message\":\"RESEND_API_KEY not configured\",\"hypothesisId\":\"D\",\"timestamp\":" + System.currentTimeMillis() + "}\n";
+                Files.write(Paths.get("c:\\Users\\death\\gus-s-marketplace\\.cursor\\debug.log"), line.getBytes(StandardCharsets.UTF_8), StandardOpenOption.CREATE, StandardOpenOption.APPEND);
+            } catch (Exception _e) { }
+            // #endregion
+            throw new IllegalStateException("RESEND_API_KEY is not configured");
+        }
+
+        Resend resend = new Resend(apiKey);
+        CreateEmailOptions params = CreateEmailOptions.builder()
+                .from("Gus <system@gusmarketplace.com>")
+                .to(new String[]{to})
+                .subject("Gus Marketplace – Contact Us")
+                .html(html)
+                .build();
+
+        try {
+            // #region agent log
+            try {
+                String line = "{\"location\":\"GusService.sendContactUsEmail:beforeSend\",\"message\":\"about to call Resend\",\"hypothesisId\":\"D\",\"timestamp\":" + System.currentTimeMillis() + "}\n";
+                Files.write(Paths.get("c:\\Users\\death\\gus-s-marketplace\\.cursor\\debug.log"), line.getBytes(StandardCharsets.UTF_8), StandardOpenOption.CREATE, StandardOpenOption.APPEND);
+            } catch (Exception _e) { }
+            // #endregion
+            resend.emails().send(params);
+        } catch (ResendException e) {
+            // #region agent log
+            try {
+                String err = (e.getMessage() != null ? e.getMessage() : "null").replace("\\", "\\\\").replace("\"", "\\\"");
+                String line = "{\"location\":\"GusService.sendContactUsEmail:ResendException\",\"message\":\"Resend failed\",\"data\":{\"errorMessage\":\"" + err + "\"},\"hypothesisId\":\"D\",\"timestamp\":" + System.currentTimeMillis() + "}\n";
+                Files.write(Paths.get("c:\\Users\\death\\gus-s-marketplace\\.cursor\\debug.log"), line.getBytes(StandardCharsets.UTF_8), StandardOpenOption.CREATE, StandardOpenOption.APPEND);
+            } catch (Exception _e) { }
+            // #endregion
+            throw new RuntimeException("Failed to send contact us email: " + e.getMessage(), e);
+        }
+    }
+
+    private static String escapeHtml(String s) {
+        if (s == null) return "";
+        return s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\"", "&quot;");
     }
 
 }
