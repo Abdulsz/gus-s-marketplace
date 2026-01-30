@@ -6,10 +6,6 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Paths;
-import java.nio.file.StandardOpenOption;
 import java.util.List;
 import java.util.Map;
 
@@ -121,53 +117,23 @@ public class GusController {
 
     @PostMapping("/contact-us")
     public ResponseEntity<?> contactUs(@RequestBody Map<String, String> payload) {
-        // #region agent log
-        try {
-            String keys = payload != null ? String.join(",", payload.keySet()) : "null";
-            String line = "{\"location\":\"GusController.contactUs:entry\",\"message\":\"contact-us called\",\"data\":{\"payloadNull\":" + (payload == null) + ",\"payloadKeys\":\"" + keys.replace("\"", "\\\"") + "\"},\"hypothesisId\":\"A,C\",\"timestamp\":" + System.currentTimeMillis() + "}\n";
-            Files.write(Paths.get("c:\\Users\\death\\gus-s-marketplace\\.cursor\\debug.log"), line.getBytes(StandardCharsets.UTF_8), StandardOpenOption.CREATE, StandardOpenOption.APPEND);
-        } catch (Exception _e) { }
-        // #endregion
         if (payload == null) {
-            // #region agent log
-            try {
-                String line = "{\"location\":\"GusController.contactUs:branch\",\"message\":\"payload null\",\"hypothesisId\":\"C\",\"timestamp\":" + System.currentTimeMillis() + "}\n";
-                Files.write(Paths.get("c:\\Users\\death\\gus-s-marketplace\\.cursor\\debug.log"), line.getBytes(StandardCharsets.UTF_8), StandardOpenOption.CREATE, StandardOpenOption.APPEND);
-            } catch (Exception _e) { }
-            // #endregion
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                     .body(Map.of("error", "Validation failed", "message", "Request body is required"));
         }
+
+        String name = payload.get("name");
+        String email = payload.get("email");
         String message = payload.get("message");
         if (message == null || message.isBlank()) {
-            // #region agent log
-            try {
-                String line = "{\"location\":\"GusController.contactUs:branch\",\"message\":\"message missing or blank\",\"hypothesisId\":\"C\",\"timestamp\":" + System.currentTimeMillis() + "}\n";
-                Files.write(Paths.get("c:\\Users\\death\\gus-s-marketplace\\.cursor\\debug.log"), line.getBytes(StandardCharsets.UTF_8), StandardOpenOption.CREATE, StandardOpenOption.APPEND);
-            } catch (Exception _e) { }
-            // #endregion
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                     .body(Map.of("error", "Validation failed", "message", "message is required"));
         }
-        String name = payload.get("name");
-        String email = payload.get("email");
+
         try {
             gusService.sendContactUsEmail(name, email, message);
-            // #region agent log
-            try {
-                String line = "{\"location\":\"GusController.contactUs:success\",\"message\":\"returning 200\",\"hypothesisId\":\"D\",\"timestamp\":" + System.currentTimeMillis() + "}\n";
-                Files.write(Paths.get("c:\\Users\\death\\gus-s-marketplace\\.cursor\\debug.log"), line.getBytes(StandardCharsets.UTF_8), StandardOpenOption.CREATE, StandardOpenOption.APPEND);
-            } catch (Exception _e) { }
-            // #endregion
             return ResponseEntity.ok(Map.of("status", "Message sent"));
         } catch (Exception e) {
-            // #region agent log
-            try {
-                String err = (e.getMessage() != null ? e.getMessage() : "null").replace("\\", "\\\\").replace("\"", "\\\"");
-                String line = "{\"location\":\"GusController.contactUs:catch\",\"message\":\"exception\",\"data\":{\"errorMessage\":\"" + err + "\"},\"hypothesisId\":\"D\",\"timestamp\":" + System.currentTimeMillis() + "}\n";
-                Files.write(Paths.get("c:\\Users\\death\\gus-s-marketplace\\.cursor\\debug.log"), line.getBytes(StandardCharsets.UTF_8), StandardOpenOption.CREATE, StandardOpenOption.APPEND);
-            } catch (Exception _e) { }
-            // #endregion
             System.err.println("Error sending contact us email: " + e.getMessage());
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(Map.of("error", "Failed to send message", "message",
